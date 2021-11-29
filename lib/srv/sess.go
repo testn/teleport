@@ -1410,7 +1410,7 @@ type MultiWriter struct {
 	mu           sync.RWMutex
 	writers      map[string]writerWrapper
 	recentWrites [][]byte
-	OnError      func(string)
+	OnError      func(string, error)
 }
 
 type writerWrapper struct {
@@ -1465,7 +1465,7 @@ func (m *MultiWriter) Write(p []byte) (n int, err error) {
 		n, err = w.Write(p)
 		if err != nil {
 			if m.OnError != nil {
-				m.OnError(w.id)
+				m.OnError(w.id, err)
 			}
 
 			if w.closeOnError {
