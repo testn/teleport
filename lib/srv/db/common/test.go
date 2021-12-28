@@ -133,7 +133,6 @@ func MakeTestClientTLSConfig(config TestClientConfig) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 	ca, err := config.AuthClient.GetCertAuthority(types.CertAuthID{
-		//Type: types.HostCA,
 		Type:       types.DatabaseCA,
 		DomainName: config.Cluster,
 	}, false)
