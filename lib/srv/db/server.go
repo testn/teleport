@@ -35,10 +35,12 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/mongodb"
-	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/utils"
+
+	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
+	_ "github.com/gravitational/teleport/lib/srv/db/mysql"
+	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
+	_ "github.com/gravitational/teleport/lib/srv/db/sqlserver"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -752,41 +754,18 @@ func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.Stream
 	return engine, nil
 }
 
-// createEngine creates a new database engine base on the database protocol. An error is returned when
-// a protocol is not supported.
+// createEngine creates a new database engine based on the database protocol.
+// An error is returned when a protocol is not supported.
 func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (common.Engine, error) {
-	switch sessionCtx.Database.GetProtocol() {
-	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
-		return &postgres.Engine{
-			Auth:         s.cfg.Auth,
-			Audit:        audit,
-			Context:      s.closeContext,
-			Clock:        s.cfg.Clock,
-			CloudClients: s.cfg.CloudClients,
-			Log:          sessionCtx.Log,
-		}, nil
-	case defaults.ProtocolMySQL:
-		return &mysql.Engine{
-			Auth:         s.cfg.Auth,
-			Audit:        audit,
-			AuthClient:   s.cfg.AuthClient,
-			Context:      s.closeContext,
-			Clock:        s.cfg.Clock,
-			CloudClients: s.cfg.CloudClients,
-			Log:          sessionCtx.Log,
-		}, nil
-	case defaults.ProtocolMongoDB:
-		return &mongodb.Engine{
-			Auth:    s.cfg.Auth,
-			Audit:   audit,
-			Context: s.closeContext,
-			Clock:   s.cfg.Clock,
-			Log:     sessionCtx.Log,
-		}, nil
-	}
-
-	return nil, trace.BadParameter("unsupported database protocol %q",
-		sessionCtx.Database.GetProtocol())
+	return common.GetEngine(sessionCtx.Database.GetProtocol(), common.EngineConfig{
+		Auth:         s.cfg.Auth,
+		Audit:        audit,
+		AuthClient:   s.cfg.AuthClient,
+		CloudClients: s.cfg.CloudClients,
+		Context:      s.closeContext,
+		Clock:        s.cfg.Clock,
+		Log:          sessionCtx.Log,
+	})
 }
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {

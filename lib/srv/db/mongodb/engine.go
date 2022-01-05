@@ -30,9 +30,15 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
+
+func init() {
+	common.RegisterEngine(defaults.ProtocolMySQL, func(ec common.EngineConfig) (common.Engine, error) {
+		return &Engine{
+			EngineConfig: ec,
+		}, nil
+	})
+}
 
 // Engine implements the MongoDB database service that accepts client
 // connections coming over reverse tunnel from the proxy and proxies
@@ -40,16 +46,8 @@ import (
 //
 // Implements common.Engine.
 type Engine struct {
-	// Auth handles database access authentication.
-	Auth common.Auth
-	// Audit emits database access audit events.
-	Audit common.Audit
-	// Context is the database server close context.
-	Context context.Context
-	// Clock is the clock interface.
-	Clock clockwork.Clock
-	// Log is used for logging.
-	Log logrus.FieldLogger
+	// EngineConfig is the common database engine configuration.
+	common.EngineConfig
 	// clientConn is an incoming client connection.
 	clientConn net.Conn
 }

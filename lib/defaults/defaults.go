@@ -503,6 +503,8 @@ const (
 	// differentiate between Cockroach and Postgres databases e.g. when
 	// selecting a CLI client to use.
 	ProtocolCockroachDB = "cockroachdb"
+	// ProtocolSQLServer is the Microsoft SQL Server database protocol.
+	ProtocolSQLServer = "sqlserver"
 )
 
 // DatabaseProtocols is a list of all supported database protocols.
@@ -511,6 +513,7 @@ var DatabaseProtocols = []string{
 	ProtocolMySQL,
 	ProtocolMongoDB,
 	ProtocolCockroachDB,
+	ProtocolSQLServer,
 }
 
 const (
@@ -557,6 +560,9 @@ var (
 
 	// CACertFile is the default name of the certificate authority file to watch
 	CACertFile = "ca.cert"
+
+	// Krb5FilePath is the default location of Kerberos configuration file.
+	Krb5FilePath = "/etc/krb5.conf"
 )
 
 const (
