@@ -43,6 +43,8 @@ import (
 	"gopkg.in/check.v1"
 )
 
+func TestAPI(t *testing.T) { check.TestingT(t) }
+
 type OIDCSuite struct {
 	a *Server
 	b backend.Backend
