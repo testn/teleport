@@ -3,7 +3,7 @@ authors: Zac Bergquist (zac@goteleport.com), Isaiah Becker-Mayer (isaiah@gotelep
 state: draft
 ---
 
-# RFD 0047 - Desktop Access: Session Recording
+# RFD 0048 - Desktop Access: Session Recording
 
 ## What
 
