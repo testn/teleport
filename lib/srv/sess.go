@@ -633,8 +633,6 @@ type session struct {
 	done chan bool
 
 	terminated bool
-
-	started bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -1446,12 +1444,12 @@ func (s *session) checkPresence() error {
 		}
 
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
-			s.log.Warn("Participant %v is not active, kicking.", participant.ID)
+			s.log.Warnf("Participant %v is not active, kicking.", participant.ID)
 			party := s.parties[rsession.ID(participant.ID)]
 			if party != nil {
 				err := party.Close()
 				if err != nil {
-					s.log.WithError(err).Warn("Failed to kick participant %v for inactivity.", participant.ID)
+					s.log.WithError(err).Warnf("Failed to kick participant %v for inactivity.", participant.ID)
 				}
 			}
 		}
@@ -1482,16 +1480,6 @@ func (s *session) checkIfStart() (bool, error) {
 	return shouldStart, nil
 }
 
-// addPartyMember adds participant to in-memory map of party members. Occurs
-// under a lock.
-func (s *session) addPartyMember(p *party) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.parties[p.id] = p
-	s.participants[p.id] = p
-}
-
 // addParty is called when a new party joins the session.
 func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	if s.login != p.login {
@@ -1500,8 +1488,12 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			s.login, p.login, s.id)
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// Adds participant to in-memory map of party members.
-	s.addPartyMember(p)
+	s.parties[p.id] = p
+	s.participants[p.id] = p
 
 	err := s.trackerAddParticipant(p)
 	if err != nil {
