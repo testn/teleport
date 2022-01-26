@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -3304,6 +3305,75 @@ func kubeDialAddr(config ProxyConfig, mode types.ProxyListenerMode) utils.NetAdd
 	return config.Kube.ListenAddr
 }
 
+// deleteRevokedLetsEncrpytCerts makes a best-effort attempt to delete any Let's
+// Encrypt certificates which were issued with an invalid TLS-ALPN-01 validation
+// method, before Let's Encrypt issued their fix at 2022-01-26T00:48:00+0000.
+// This should only be called when acme/autocert is enabled, so that deleted
+// certificates will automatically be renewed. See The Let's Encrypt incident
+// here: https://community.letsencrypt.org/t/2022-01-25-issue-with-tls-alpn-01-validation-method/170450
+func deleteRevokedLetsEncryptCerts(acmePath string, log utils.Logger) {
+	dir, err := os.Open(acmePath)
+	if err != nil {
+		log.Debug("Failed to open acme certificate directory: %v", err)
+		return
+	}
+	defer dir.Close()
+	entries, err := dir.ReadDir(-1)
+	if err != nil {
+		log.Debug("Failed to read acme certificate directory: %v", err)
+		return
+	}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			// skip any links/directories
+			continue
+		}
+		fileName := filepath.Join(acmePath, entry.Name())
+		data, err := os.ReadFile(fileName)
+		if err != nil {
+			// failed to read this file, continue to rest of files
+			log.Debug("Failed to read certificate file: %v", err)
+			continue
+		}
+		// autocert files include private key followed by certs. The private key
+		// will be ignored.
+		priv, remaining := pem.Decode(data)
+		if priv == nil {
+			// it appears this is not a pem-encoded file, continue
+			continue
+		}
+		leaf, _ := pem.Decode(remaining)
+		if leaf == nil {
+			// only one block was present, this is not a cert, continue
+			continue
+		}
+		leafCert, err := x509.ParseCertificate(leaf.Bytes)
+		if err != nil {
+			// not a certificate? continue
+			continue
+		}
+		if len(leafCert.Issuer.Organization) < 1 || leafCert.Issuer.Organization[0] != "Let's Encrypt" {
+			// not a Let's Encrypt cert, continue
+			continue
+		}
+		// This is the time that Let's Encrypt released their patch. Certs
+		// issued after this time should not be revoked. Let's Encrypt sets the
+		// NotBefore time to 1 hour before the certificate was issued, so by
+		// comparing with this time we are giving a 1 hour buffer where certs
+		// issued just after the patch were released will also be deleted. This
+		// is intentional in case the revocation time does not exactly match up.
+		if leafCert.NotBefore.After(time.Date(2022, time.January, 26, 0, 48, 0, 0, time.UTC)) {
+			// cert is new enough that it will not be revoked
+			continue
+		}
+		// delete the cert so we will get a new one
+		log.Warn("deleting Let's Encrypt certificate the would have been revoked")
+		if err := os.Remove(fileName); err != nil {
+			log.Warn("Failed to delete certificate file: %v", err)
+		}
+	}
+}
+
 func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
@@ -3326,6 +3396,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		deleteRevokedLetsEncryptCerts(acmePath, process.Config.Log)
 		m := &autocert.Manager{
 			Cache:      autocert.DirCache(acmePath),
 			Prompt:     autocert.AcceptTOS,
