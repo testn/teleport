@@ -661,6 +661,19 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		watch.QueueSize = defaults.ProxyQueueSize
 	case a.hasBuiltinRole(string(types.RoleNode)):
 		watch.QueueSize = defaults.NodeQueueSize
+		if !a.hasBuiltinRole(string(types.RoleAuth)) {
+			for i, k := range watch.Kinds {
+				if k.Kind != types.KindCertAuthority || k.SubKind != "" || k.Version != "" || k.Name != "" || k.LoadSecrets || len(k.Filter) != 0 {
+					continue
+				}
+
+				println("------------------- fixing WatchKind for non-auth node", a.context.Identity.GetIdentity().Username)
+				watch.Kinds[i].Filter = map[string]string{
+					"host": "local",
+					"user": "local,trusted",
+				}
+			}
+		}
 	}
 	return a.authServer.NewWatcher(ctx, watch)
 }

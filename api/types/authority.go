@@ -79,6 +79,9 @@ type CertAuthority interface {
 	AllKeyTypesMatch() bool
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
+
+	GetTrustRelationship() TrustRelationship
+	SetTrustRelationship(TrustRelationship)
 }
 
 // NewCertAuthority returns new cert authority
@@ -363,6 +366,14 @@ func (ca *CertAuthorityV2) GetTrustedJWTKeyPairs() []*JWTKeyPair {
 		kps = append(kps, k.Clone())
 	}
 	return kps
+}
+
+func (ca *CertAuthorityV2) GetTrustRelationship() TrustRelationship {
+	return ca.TrustRelationship
+}
+
+func (ca *CertAuthorityV2) SetTrustRelationship(rel TrustRelationship) {
+	ca.TrustRelationship = rel
 }
 
 // setStaticFields sets static resource header and metadata fields.

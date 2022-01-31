@@ -504,6 +504,7 @@ func (s *remoteSite) watchCertAuthorities() error {
 					remoteCA.GetClusterName() != s.domainName {
 					continue
 				}
+				remoteCA.SetTrustRelationship(types.TrustRelationship_REMOTE)
 
 				oldRemoteCA, err := s.localClient.GetCertAuthority(types.CertAuthID{
 					Type:       types.HostCA,
@@ -516,6 +517,9 @@ func (s *remoteSite) watchCertAuthorities() error {
 
 				// if CA is changed or does not exist, update backend
 				if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
+					if oldRemoteCA.GetTrustRelationship() != types.TrustRelationship_REMOTE {
+						println("==== oldRemoteCA in watchCertAuthorities was", oldRemoteCA.GetTrustRelationship())
+					}
 					if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
 						return trace.Wrap(err)
 					}

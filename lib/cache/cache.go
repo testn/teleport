@@ -178,7 +178,13 @@ func ForOldRemoteProxy(cfg Config) Config {
 func ForNode(cfg Config) Config {
 	cfg.target = "node"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: types.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -199,7 +205,13 @@ func ForNode(cfg Config) Config {
 func ForKubernetes(cfg Config) Config {
 	cfg.target = "kube"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: types.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -218,7 +230,13 @@ func ForKubernetes(cfg Config) Config {
 func ForApps(cfg Config) Config {
 	cfg.target = "apps"
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: types.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -239,7 +257,13 @@ func ForApps(cfg Config) Config {
 // ForDatabases sets up watch configuration for database proxy servers.
 func ForDatabases(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: types.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},

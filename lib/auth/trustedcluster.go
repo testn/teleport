@@ -300,6 +300,7 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 	for _, remoteCertAuthority := range remoteCAs {
 		// change the name of the remote ca to the name of the trusted cluster
 		remoteCertAuthority.SetName(trustedCluster.GetName())
+		remoteCertAuthority.SetTrustRelationship(types.TrustRelationship_TRUSTED)
 
 		// wipe out roles sent from the remote cluster and set roles from the trusted cluster
 		remoteCertAuthority.SetRoles(nil)
@@ -500,6 +501,7 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 
 	// token has been validated, upsert the given certificate authority
 	for _, certAuthority := range validateRequest.CAs {
+		certAuthority.SetTrustRelationship(types.TrustRelationship_REMOTE)
 		err = a.UpsertCertAuthority(certAuthority)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -48,6 +48,7 @@ func (s *CA) CreateCertAuthority(ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
+	println("-------------------- creating", ca.GetType(), "ca", ca.GetClusterName(), ca.GetName(), ca.GetSubKind(), ca.GetTrustRelationship().String())
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
@@ -73,6 +74,7 @@ func (s *CA) UpsertCertAuthority(ca types.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
+	println("-------------------- upserting", ca.GetType(), "ca", ca.GetClusterName(), ca.GetName(), ca.GetSubKind(), ca.GetTrustRelationship().String())
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
@@ -117,6 +119,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, existing types.CertAuthority) erro
 		Value:   existingValue,
 		Expires: existing.Expiry(),
 	}
+	println("-------------------- CASing", new.GetType(), "ca", new.GetClusterName(), new.GetName(), new.GetSubKind(), new.GetTrustRelationship().String())
 
 	_, err = s.CompareAndSwap(context.TODO(), existingItem, newItem)
 	if err != nil {

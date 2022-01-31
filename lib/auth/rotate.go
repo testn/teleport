@@ -232,6 +232,10 @@ func (a *Server) RotateCertAuthority(req RotateRequest) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		if rotated.GetTrustRelationship() != types.TrustRelationship_LOCAL {
+			println("=== own ca in RotateCertAuthority was", rotated.GetTrustRelationship())
+			rotated.SetTrustRelationship(types.TrustRelationship_LOCAL)
+		}
 		if err := a.CompareAndSwapCertAuthority(rotated, existing); err != nil {
 			return trace.Wrap(err)
 		}
@@ -279,6 +283,10 @@ func (a *Server) RotateExternalCertAuthority(ca types.CertAuthority) error {
 	if err := updated.SetAdditionalTrustedKeys(ca.GetAdditionalTrustedKeys().Clone()); err != nil {
 		return trace.Wrap(err)
 	}
+	if updated.GetTrustRelationship() != types.TrustRelationship_TRUSTED {
+		println("====== RotateExternalCertAuthority trust rel was", existing.GetTrustRelationship())
+		updated.SetTrustRelationship(types.TrustRelationship_TRUSTED)
+	}
 	updated.SetRotation(ca.GetRotation())
 
 	// use compare and swap to protect from concurrent updates
@@ -305,6 +313,9 @@ func (a *Server) autoRotateCertAuthorities() error {
 		}, true)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if ca.GetTrustRelationship() != types.TrustRelationship_LOCAL {
+			println("======= local ca in autoRotateCertAuthorities is", ca.GetTrustRelationship())
 		}
 		if err := a.autoRotate(ca); err != nil {
 			return trace.Wrap(err)
