@@ -189,8 +189,18 @@ func getQueryValuesForGetLeaveRequests(now time.Time) url.Values {
 
 	// Set query values.
 	q := url.Values{}
-	q.Add("from", formattedStart)
-	q.Add("to", formattedEnd)
-	q.Add("status", approvedLeaveRequestStatus)
+	q.Add(from, formattedStart)
+	q.Add(to, formattedEnd)
+	q.Add(status, approvedLeaveRequestStatus)
 	return q
 }
+
+// Query parameter constants.
+const (
+	// to is a parameter name to get leave requests until a specified date.
+	to = "to"
+	// from is a parameter name to get leave requests from a specified date.
+	from = "from"
+	// status is a parameter name to filter leave requests by status.
+	status = "status"
+)

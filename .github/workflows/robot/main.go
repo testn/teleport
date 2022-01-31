@@ -32,7 +32,7 @@ import (
 )
 
 func main() {
-	workflow, token, reviewers, err := parseFlags()
+	workflow, token, reviewers, ripplingToken, err := parseFlags()
 	if err != nil {
 		log.Fatalf("Failed to parse flags: %v.", err)
 	}
@@ -44,7 +44,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()
 
-	b, err := createBot(ctx, token, reviewers)
+	b, err := createBot(ctx, token, reviewers, ripplingToken)
 	if err != nil {
 		log.Fatalf("Failed to create bot: %v.", err)
 	}
@@ -70,33 +70,36 @@ func main() {
 	log.Printf("Workflow %v complete.", workflow)
 }
 
-func parseFlags() (string, string, string, error) {
+func parseFlags() (string, string, string, string, error) {
 	var (
-		workflow  = flag.String("workflow", "", "specific workflow to run [assign, check, dismiss]")
-		token     = flag.String("token", "", "GitHub authentication token")
-		reviewers = flag.String("reviewers", "", "reviewer assignments")
+		workflow      = flag.String("workflow", "", "specific workflow to run [assign, check, dismiss]")
+		token         = flag.String("token", "", "GitHub authentication token")
+		reviewers     = flag.String("reviewers", "", "reviewer assignments")
+		ripplingToken = flag.String("rippling-token", "", "Rippling authentication token")
 	)
 	flag.Parse()
 
 	if *workflow == "" {
-		return "", "", "", trace.BadParameter("workflow missing")
+		return "", "", "", "", trace.BadParameter("workflow missing")
 	}
 	if *token == "" {
-		return "", "", "", trace.BadParameter("token missing")
+		return "", "", "", "", trace.BadParameter("token missing")
 	}
 	if *reviewers == "" {
-		return "", "", "", trace.BadParameter("reviewers required for assign and check")
+		return "", "", "", "", trace.BadParameter("reviewers required for assign and check")
 	}
-
+	if *ripplingToken == "" {
+		return "", "", "", "", trace.BadParameter("ripplng token missing")
+	}
 	data, err := base64.StdEncoding.DecodeString(*reviewers)
 	if err != nil {
-		return "", "", "", trace.Wrap(err)
+		return "", "", "", "", trace.Wrap(err)
 	}
 
-	return *workflow, *token, string(data), nil
+	return *workflow, *token, string(data), *ripplingToken, nil
 }
 
-func createBot(ctx context.Context, token string, reviewers string) (*bot.Bot, error) {
+func createBot(ctx context.Context, token string, reviewersString string, ripplingToken string) (*bot.Bot, error) {
 	gh, err := github.New(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -105,14 +108,20 @@ func createBot(ctx context.Context, token string, reviewers string) (*bot.Bot, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	reviewer, err := review.FromString(reviewers)
+
+	reviewers, err := review.ReviewersFromString(reviewersString)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	review, err := review.New(&review.Config{
+		Reviewers:     reviewers,
+		RipplingToken: ripplingToken,
+	})
+
 	b, err := bot.New(&bot.Config{
 		GitHub:      gh,
 		Environment: environment,
-		Review:      reviewer,
+		Review:      review,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

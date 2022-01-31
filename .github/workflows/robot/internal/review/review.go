@@ -33,14 +33,65 @@ type Reviewer struct {
 	Team string `json:"team"`
 	// Owner is true if the reviewer is a code or docs owner (required for all reviews).
 	Owner bool `json:"owner"`
+	// FullName is the reviewer's full name
+	FullName string `json:"full_name"`
 }
 
 // Config holds code reviewer configuration.
 type Config struct {
+	// Reviewers are all the types of reviewers and reviewers to omit.
+	Reviewers *Reviewers
+
+	// RippingToken is the Rippling authentication token.
+	RipplingToken string
+
 	// Rand is a random number generator. It is not safe for cryptographic
 	// operations.
 	Rand *rand.Rand
+}
 
+// CheckAndSetDefaults checks and sets defaults.
+func (c *Config) CheckAndSetDefaults() error {
+	if c.Rand == nil {
+		c.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
+	if c.Reviewers == nil {
+		return trace.BadParameter("missing parameter Reviewers")
+	}
+	if c.RipplingToken == "" {
+		return trace.BadParameter("missing parameter RipplingToken")
+	}
+	return nil
+}
+
+// Assignments can be used to assign, check, and omit code reviewers.
+type Assignments struct {
+	r       *Reviewers
+	rand    *rand.Rand
+	onLeave map[string]bool
+}
+
+
+// New returns new code review assignments.
+func New(c *Config) (*Assignments, error) {
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := c.Reviewers.checkReviewers(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	onLeave, err := getEmployeesOnLeave(c.RipplingToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &Assignments{
+		r:       c.Reviewers,
+		rand:    c.Rand,
+		onLeave: onLeave,
+	}, nil
+}
+
+type Reviewers struct {
 	// CodeReviewers and CodeReviewersOmit is a map of code reviews and code
 	// reviewers to omit.
 	CodeReviewers     map[string]Reviewer `json:"codeReviewers"`
@@ -55,68 +106,40 @@ type Config struct {
 	Admins []string `json:"admins"`
 }
 
-// CheckAndSetDefaults checks and sets defaults.
-func (c *Config) CheckAndSetDefaults() error {
-	if c.Rand == nil {
-		c.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+// ReviewersFromString parses JSON formatted configuration and returns reviewers.
+func ReviewersFromString(reviewers string) (*Reviewers, error) {
+	var revs Reviewers
+	if err := json.Unmarshal([]byte(reviewers), &revs); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &revs, nil
+}
+
+func (r *Reviewers) checkReviewers() error {
+	if r.CodeReviewers == nil {
+		return trace.BadParameter("missing key CodeReviewers")
+	}
+	if r.CodeReviewersOmit == nil {
+		return trace.BadParameter("missing key CodeReviewersOmit")
 	}
 
-	if c.CodeReviewers == nil {
-		return trace.BadParameter("missing parameter CodeReviewers")
+	if r.DocsReviewers == nil {
+		return trace.BadParameter("missing key DocsReviewers")
 	}
-	if c.CodeReviewersOmit == nil {
-		return trace.BadParameter("missing parameter CodeReviewersOmit")
-	}
-
-	if c.DocsReviewers == nil {
-		return trace.BadParameter("missing parameter DocsReviewers")
-	}
-	if c.DocsReviewersOmit == nil {
-		return trace.BadParameter("missing parameter DocsReviewersOmit")
+	if r.DocsReviewersOmit == nil {
+		return trace.BadParameter("missing key DocsReviewersOmit")
 	}
 
-	if c.Admins == nil {
-		return trace.BadParameter("missing parameter Admins")
+	if r.Admins == nil {
+		return trace.BadParameter("missing key Admins")
 	}
-
 	return nil
-}
-
-// Assignments can be used to assign and check code reviewers.
-type Assignments struct {
-	c *Config
-}
-
-// FromString parses JSON formatted configuration and returns assignments.
-func FromString(reviewers string) (*Assignments, error) {
-	var c Config
-	if err := json.Unmarshal([]byte(reviewers), &c); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	r, err := New(&c)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return r, nil
-}
-
-// New returns new code review assignments.
-func New(c *Config) (*Assignments, error) {
-	if err := c.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &Assignments{
-		c: c,
-	}, nil
 }
 
 // IsInternal returns if the author of a PR is internal.
 func (r *Assignments) IsInternal(author string) bool {
-	_, code := r.c.CodeReviewers[author]
-	_, docs := r.c.DocsReviewers[author]
+	_, code := r.r.CodeReviewers[author]
+	_, docs := r.r.DocsReviewers[author]
 	return code || docs
 }
 
@@ -145,7 +168,7 @@ func (r *Assignments) Get(author string, docs bool, code bool) []string {
 }
 
 func (r *Assignments) getDocsReviewers(author string) []string {
-	setA, setB := getReviewerSets(author, "Core", r.c.DocsReviewers, r.c.DocsReviewersOmit)
+	setA, setB := getReviewerSets(author, "Core", r.r.DocsReviewers, r.r.DocsReviewersOmit, r.onLeave)
 	reviewers := append(setA, setB...)
 
 	// If no docs reviewers were assigned, assign admin reviews.
@@ -159,14 +182,14 @@ func (r *Assignments) getCodeReviewers(author string) []string {
 	setA, setB := r.getCodeReviewerSets(author)
 
 	return []string{
-		setA[r.c.Rand.Intn(len(setA))],
-		setB[r.c.Rand.Intn(len(setB))],
+		setA[r.rand.Intn(len(setA))],
+		setB[r.rand.Intn(len(setB))],
 	}
 }
 
 func (r *Assignments) getAdminReviewers(author string) []string {
 	var reviewers []string
-	for _, v := range r.c.Admins {
+	for _, v := range r.r.Admins {
 		if v == author {
 			continue
 		}
@@ -178,14 +201,14 @@ func (r *Assignments) getAdminReviewers(author string) []string {
 func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 	// Internal non-Core contributors get assigned from the admin reviewer set.
 	// Admins will review, triage, and re-assign.
-	v, ok := r.c.CodeReviewers[author]
+	v, ok := r.r.CodeReviewers[author]
 	if !ok || v.Team == "Internal" {
 		reviewers := r.getAdminReviewers(author)
 		n := len(reviewers) / 2
 		return reviewers[:n], reviewers[n:]
 	}
 
-	return getReviewerSets(author, v.Team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+	return getReviewerSets(author, v.Team, r.r.CodeReviewers, r.r.CodeReviewersOmit, r.onLeave)
 }
 
 // CheckExternal requires two admins have approved.
@@ -254,7 +277,7 @@ func (r *Assignments) checkDocsReviews(author string, reviews map[string]*github
 func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github.Review) error {
 	// External code reviews should never hit this path, if they do, fail and
 	// return an error.
-	v, ok := r.c.CodeReviewers[author]
+	v, ok := r.r.CodeReviewers[author]
 	if !ok {
 		return trace.BadParameter("rejecting checking external review")
 	}
@@ -266,7 +289,7 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 		team = "Core"
 	}
 
-	setA, setB := getReviewerSets(author, team, r.c.CodeReviewers, r.c.CodeReviewersOmit)
+	setA, setB := getReviewerSets(author, team, r.r.CodeReviewers, r.r.CodeReviewersOmit, r.onLeave)
 
 	// PRs can be approved if you either have multiple code owners that approve
 	// or code owner and code reviewer.
@@ -280,7 +303,7 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 	return trace.BadParameter("at least one approval required from each set %v %v", setA, setB)
 }
 
-func getReviewerSets(author string, team string, reviewers map[string]Reviewer, reviewersOmit map[string]bool) ([]string, []string) {
+func getReviewerSets(author string, team string, reviewers map[string]Reviewer, reviewersOmit map[string]bool, onLeave map[string]bool) ([]string, []string) {
 	var setA []string
 	var setB []string
 
@@ -297,7 +320,9 @@ func getReviewerSets(author string, team string, reviewers map[string]Reviewer, 
 		if k == author {
 			continue
 		}
-
+		if _, ok := onLeave[v.FullName]; ok {
+			continue
+		}
 		if v.Owner {
 			setA = append(setA, k)
 		} else {

@@ -34,7 +34,7 @@ func TestIsInternal(t *testing.T) {
 		{
 			desc: "code-is-internal",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -62,7 +62,7 @@ func TestIsInternal(t *testing.T) {
 		{
 			desc: "docs-is-internal",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -90,7 +90,7 @@ func TestIsInternal(t *testing.T) {
 		{
 			desc: "other-is-not-internal",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -136,7 +136,7 @@ func TestGetCodeReviewers(t *testing.T) {
 		{
 			desc: "skip-self-assign",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -159,7 +159,7 @@ func TestGetCodeReviewers(t *testing.T) {
 		{
 			desc: "skip-omitted-user",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -185,7 +185,7 @@ func TestGetCodeReviewers(t *testing.T) {
 		{
 			desc: "internal-gets-defaults",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -209,7 +209,7 @@ func TestGetCodeReviewers(t *testing.T) {
 		{
 			desc: "normal",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Code.
 					CodeReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -258,7 +258,7 @@ func TestGetDocsReviewers(t *testing.T) {
 		{
 			desc: "skip-self-assign",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -278,7 +278,7 @@ func TestGetDocsReviewers(t *testing.T) {
 		{
 			desc: "skip-self-assign-with-omit",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -300,7 +300,7 @@ func TestGetDocsReviewers(t *testing.T) {
 		{
 			desc: "normal",
 			assignments: &Assignments{
-				c: &Config{
+				r: &Reviewers{
 					// Docs.
 					DocsReviewers: map[string]Reviewer{
 						"1": Reviewer{Team: "Core", Owner: true},
@@ -329,7 +329,7 @@ func TestGetDocsReviewers(t *testing.T) {
 // TestCheckExternal checks external reviews.
 func TestCheckExternal(t *testing.T) {
 	r := &Assignments{
-		c: &Config{
+		r: &Reviewers{
 			// Code.
 			CodeReviewers: map[string]Reviewer{
 				"1": Reviewer{Team: "Core", Owner: true},
@@ -435,7 +435,7 @@ func TestCheckExternal(t *testing.T) {
 // TestCheckInternal checks internal reviews.
 func TestCheckInternal(t *testing.T) {
 	r := &Assignments{
-		c: &Config{
+		r: &Reviewers{
 			// Code.
 			CodeReviewers: map[string]Reviewer{
 				"1": Reviewer{Team: "Core", Owner: true},
@@ -633,10 +633,13 @@ func TestCheckInternal(t *testing.T) {
 
 // TestFromString tests if configuration is correctly read in from a string.
 func TestFromString(t *testing.T) {
-	r, err := FromString(reviewers)
+	r, err := ReviewersFromString(reviewers)
 	require.NoError(t, err)
 
-	require.EqualValues(t, r.c.CodeReviewers, map[string]Reviewer{
+	err = r.checkReviewers()
+	require.NoError(t, err)
+
+	require.EqualValues(t, r.CodeReviewers, map[string]Reviewer{
 		"1": Reviewer{
 			Team:  "Core",
 			Owner: true,
@@ -646,10 +649,10 @@ func TestFromString(t *testing.T) {
 			Owner: false,
 		},
 	})
-	require.EqualValues(t, r.c.CodeReviewersOmit, map[string]bool{
+	require.EqualValues(t, r.CodeReviewersOmit, map[string]bool{
 		"3": true,
 	})
-	require.EqualValues(t, r.c.DocsReviewers, map[string]Reviewer{
+	require.EqualValues(t, r.DocsReviewers, map[string]Reviewer{
 		"4": Reviewer{
 			Team:  "Core",
 			Owner: true,
@@ -659,10 +662,10 @@ func TestFromString(t *testing.T) {
 			Owner: false,
 		},
 	})
-	require.EqualValues(t, r.c.DocsReviewersOmit, map[string]bool{
+	require.EqualValues(t, r.DocsReviewersOmit, map[string]bool{
 		"6": true,
 	})
-	require.EqualValues(t, r.c.Admins, []string{
+	require.EqualValues(t, r.Admins, []string{
 		"7",
 		"8",
 	})
