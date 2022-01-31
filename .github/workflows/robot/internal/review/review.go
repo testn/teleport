@@ -39,7 +39,7 @@ type Reviewer struct {
 
 // Config holds code reviewer configuration.
 type Config struct {
-	// Reviewers are all the types of reviewers and reviewers to omit.
+	// Reviewers are code and docs reviewers.
 	Reviewers *Reviewers
 
 	// RippingToken is the Rippling authentication token.
@@ -66,11 +66,15 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // Assignments can be used to assign, check, and omit code reviewers.
 type Assignments struct {
-	r       *Reviewers
-	rand    *rand.Rand
-	onLeave map[string]bool
+	// r is code, docs, and admin reviewers.
+	r *Reviewers
+	// rand is a random number generator. It is not safe for cryptographic
+	// operations.
+	rand *rand.Rand
+	// omit is a map of reviewers to omit. The key is the full name
+	// of the reviewer.
+	omit map[string]bool
 }
-
 
 // New returns new code review assignments.
 func New(c *Config) (*Assignments, error) {
@@ -85,22 +89,20 @@ func New(c *Config) (*Assignments, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &Assignments{
-		r:       c.Reviewers,
-		rand:    c.Rand,
-		onLeave: onLeave,
+		r:    c.Reviewers,
+		rand: c.Rand,
+		omit: onLeave,
 	}, nil
 }
 
 type Reviewers struct {
-	// CodeReviewers and CodeReviewersOmit is a map of code reviews and code
-	// reviewers to omit.
-	CodeReviewers     map[string]Reviewer `json:"codeReviewers"`
-	CodeReviewersOmit map[string]bool     `json:"codeReviewersOmit"`
+	// CodeReviewers is a map of code reviewers.
+	// The key is the reviewer's GitHub username.
+	CodeReviewers map[string]Reviewer `json:"codeReviewers"`
 
-	// DocsReviewers and DocsReviewersOmit is a map of docs reviews and docs
-	// reviewers to omit.
-	DocsReviewers     map[string]Reviewer `json:"docsReviewers"`
-	DocsReviewersOmit map[string]bool     `json:"docsReviewersOmit"`
+	// DocsReviewers is a map of docs reviewers.
+	// The key is the reviewer's GitHub username.
+	DocsReviewers map[string]Reviewer `json:"docsReviewers"`
 
 	// Admins are assigned reviews when no others match.
 	Admins []string `json:"admins"`
@@ -119,15 +121,9 @@ func (r *Reviewers) checkReviewers() error {
 	if r.CodeReviewers == nil {
 		return trace.BadParameter("missing key CodeReviewers")
 	}
-	if r.CodeReviewersOmit == nil {
-		return trace.BadParameter("missing key CodeReviewersOmit")
-	}
 
 	if r.DocsReviewers == nil {
 		return trace.BadParameter("missing key DocsReviewers")
-	}
-	if r.DocsReviewersOmit == nil {
-		return trace.BadParameter("missing key DocsReviewersOmit")
 	}
 
 	if r.Admins == nil {
@@ -168,7 +164,7 @@ func (r *Assignments) Get(author string, docs bool, code bool) []string {
 }
 
 func (r *Assignments) getDocsReviewers(author string) []string {
-	setA, setB := getReviewerSets(author, "Core", r.r.DocsReviewers, r.r.DocsReviewersOmit, r.onLeave)
+	setA, setB := getReviewerSets(author, "Core", r.r.DocsReviewers, r.omit)
 	reviewers := append(setA, setB...)
 
 	// If no docs reviewers were assigned, assign admin reviews.
@@ -208,7 +204,7 @@ func (r *Assignments) getCodeReviewerSets(author string) ([]string, []string) {
 		return reviewers[:n], reviewers[n:]
 	}
 
-	return getReviewerSets(author, v.Team, r.r.CodeReviewers, r.r.CodeReviewersOmit, r.onLeave)
+	return getReviewerSets(author, v.Team, r.r.CodeReviewers, r.omit)
 }
 
 // CheckExternal requires two admins have approved.
@@ -289,7 +285,7 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 		team = "Core"
 	}
 
-	setA, setB := getReviewerSets(author, team, r.r.CodeReviewers, r.r.CodeReviewersOmit, r.onLeave)
+	setA, setB := getReviewerSets(author, team, r.r.CodeReviewers, r.omit)
 
 	// PRs can be approved if you either have multiple code owners that approve
 	// or code owner and code reviewer.
@@ -303,7 +299,7 @@ func (r *Assignments) checkCodeReviews(author string, reviews map[string]*github
 	return trace.BadParameter("at least one approval required from each set %v %v", setA, setB)
 }
 
-func getReviewerSets(author string, team string, reviewers map[string]Reviewer, reviewersOmit map[string]bool, onLeave map[string]bool) ([]string, []string) {
+func getReviewerSets(author string, team string, reviewers map[string]Reviewer, reviewersOmit map[string]bool) ([]string, []string) {
 	var setA []string
 	var setB []string
 
@@ -313,14 +309,11 @@ func getReviewerSets(author string, team string, reviewers map[string]Reviewer, 
 			continue
 		}
 		// Skip over reviewers that are marked as omit.
-		if _, ok := reviewersOmit[k]; ok {
+		if _, ok := reviewersOmit[v.FullName]; ok {
 			continue
 		}
 		// Skip author, can't assign/review own PR.
 		if k == author {
-			continue
-		}
-		if _, ok := onLeave[v.FullName]; ok {
 			continue
 		}
 		if v.Owner {
