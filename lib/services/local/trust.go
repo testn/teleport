@@ -33,6 +33,7 @@ func (s *CA) CreateCertAuthority(ca services.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
+	println("-------------------- creating", ca.GetType(), "ca", ca.GetName())
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
@@ -58,6 +59,7 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
+	println("-------------------- upserting", ca.GetType(), "ca", ca.GetName())
 	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)

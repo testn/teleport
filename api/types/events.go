@@ -19,6 +19,7 @@ package types
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -137,6 +138,23 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 				return false, trace.Wrap(err)
 			}
 			return filter.Match(res), nil
+		case CertAuthority:
+			// TODO: CertAuthorityFilter
+			trustRel := "unknown"
+			if ca, ok := res.(*CertAuthorityV2); ok && ca != nil && ca.TrustRel != "" {
+				trustRel = ca.TrustRel
+			}
+			if len(kind.Filter) == 0 {
+				return true, nil
+			}
+			filter := kind.Filter[string(res.GetType())]
+			filters := strings.Split(filter, ",")
+			for _, f := range filters {
+				if trustRel == f {
+					return true, nil
+				}
+			}
+			return false, nil
 		default:
 			return false, trace.BadParameter("unfilterable resource type %T", e.Resource)
 		}

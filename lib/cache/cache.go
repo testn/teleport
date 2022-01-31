@@ -154,7 +154,13 @@ func ForOldRemoteProxy(cfg Config) Config {
 func ForNode(cfg Config) Config {
 	cfg.target = "node"
 	cfg.Watches = []services.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: services.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
 		{Kind: services.KindClusterAuthPreference},
@@ -173,7 +179,13 @@ func ForNode(cfg Config) Config {
 func ForKubernetes(cfg Config) Config {
 	cfg.target = "kube"
 	cfg.Watches = []services.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: services.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
 		{Kind: services.KindClusterAuthPreference},
@@ -190,7 +202,13 @@ func ForKubernetes(cfg Config) Config {
 func ForApps(cfg Config) Config {
 	cfg.target = "apps"
 	cfg.Watches = []services.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: services.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
 		{Kind: services.KindClusterAuthPreference},
@@ -208,7 +226,13 @@ func ForApps(cfg Config) Config {
 // ForDatabases sets up watch configuration for database proxy servers.
 func ForDatabases(cfg Config) Config {
 	cfg.Watches = []services.WatchKind{
-		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{
+			Kind: services.KindCertAuthority,
+			Filter: map[string]string{
+				"host": "local",
+				"user": "local,trusted",
+			},
+		},
 		{Kind: services.KindClusterName},
 		{Kind: services.KindClusterConfig},
 		{Kind: services.KindClusterAuthPreference},
@@ -846,6 +870,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 				}
 			}
 
+			if event.Type == types.OpPut && event.Resource.GetKind() == types.KindCertAuthority {
+				if ca, ok := event.Resource.(*types.CertAuthorityV2); ok {
+					ca.TrustRel = c.getClusterTrustRelationship(ca.GetClusterName())
+					println("----- adding trustrel to ca", ca.GetClusterName(), ca.GetType(), ca.TrustRel)
+				}
+			}
+
 			err = c.processEvent(ctx, event)
 			if err != nil {
 				return trace.Wrap(err)
@@ -853,6 +884,38 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
 		}
 	}
+}
+
+func (c *Cache) getClusterTrustRelationship(cluster string) string {
+	println("== getClusterTrustRelationship", cluster)
+	if clusterName, err := c.GetClusterName(); err == nil {
+		println("=== clusterName", clusterName.GetClusterName())
+		if cluster == clusterName.GetClusterName() {
+			return "local"
+		}
+	}
+
+	// TODO: add a (*Cache).GetRemoteClusterNames() that doesn't clone all remote clusters
+	if remoteClusters, err := c.GetRemoteClusters(services.SkipValidation()); err == nil {
+		for _, rc := range remoteClusters {
+			println("=== remoteCluster", rc.GetName())
+			if cluster == rc.GetName() {
+				return "remote"
+			}
+		}
+	}
+
+	// TODO: add trusted clusters to the cache?
+	if trustedClusters, err := c.Presence.GetTrustedClusters(context.TODO()); err == nil {
+		for _, tc := range trustedClusters {
+			println("=== trustedCluster", tc.GetName())
+			if cluster == tc.GetName() {
+				return "trusted"
+			}
+		}
+	}
+
+	return "unknown"
 }
 
 func (c *Cache) watchKinds() []services.WatchKind {

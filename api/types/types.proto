@@ -338,6 +338,9 @@ message CertAuthorityV2 {
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec contains cert authority specification
     CertAuthoritySpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+
+    // TrustRel is local/trusted/remote/unknown, only kept in transit
+    string TrustRel = 6 [ (gogoproto.jsontag) = "-" ];
 }
 
 // CertAuthoritySpecV2 is a host or user certificate authority that
