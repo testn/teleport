@@ -1,0 +1,224 @@
+package review
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestShouldOmitRangeOverNonBusinessDays(t *testing.T) {
+	// Leave is 3 days long over a weekend.
+	req := EmployeeLeaveRequest{
+		StartDate: Time{time.Date(2021, time.Month(1), 1, 0, 0, 0, 0, time.UTC)},
+		EndDate:   Time{time.Date(2021, time.Month(1), 5, 0, 0, 0, 0, time.UTC)},
+	}
+
+	tests := []struct {
+		currentDay time.Time
+		expected   bool
+		desc       string
+	}{
+		{
+			currentDay: time.Date(2020, time.Month(12), 29, 0, 0, 0, 0, time.UTC),
+			expected:   false,
+			desc:       "three-business-days-before-leave--don't-omit",
+		},
+		{
+			currentDay: time.Date(2020, time.Month(12), 30, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "two-business-days-before-leave--omit",
+		},
+		{
+			currentDay: time.Date(2020, time.Month(12), 31, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "one-business-day before-leave--omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 1, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "first-day-of-leave--omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 4, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "during-leave--omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 5, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "last-day-of-leave--omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 6, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "one-business-day-after-leave--omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 7, 0, 0, 0, 0, time.UTC),
+			expected:   false,
+			desc:       "two-business-days-after-leave--don't-omit",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			res := req.shouldOmitEmployee(test.currentDay)
+			require.Equal(t, test.expected, res)
+
+		})
+	}
+}
+
+func TestShouldOmitRangeOverOnlyBusinessDays(t *testing.T) {
+	// Leave is a business week.
+	req := EmployeeLeaveRequest{
+		StartDate: Time{time.Date(2021, time.Month(1), 18, 0, 0, 0, 0, time.UTC)},
+		EndDate:   Time{time.Date(2021, time.Month(1), 22, 0, 0, 0, 0, time.UTC)},
+	}
+
+	tests := []struct {
+		currentDay time.Time
+		expected   bool
+		desc       string
+	}{
+		{
+			currentDay: time.Date(2021, time.Month(1), 13, 0, 0, 0, 0, time.UTC),
+			expected:   false,
+			desc:       "three-business-days-before-leave--don't-omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 14, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "two-business-days-before-leave--omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 15, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "one-business-day-before-leave-before-weekend--omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 25, 0, 0, 0, 0, time.UTC),
+			expected:   true,
+			desc:       "one-business-day-after-leave-after-weekend--omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 26, 0, 0, 0, 0, time.UTC),
+			expected:   false,
+			desc:       "two-business-days-after-leave--don't-omit",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			res := req.shouldOmitEmployee(test.currentDay)
+			require.Equal(t, test.expected, res)
+		})
+	}
+}
+
+func TestShouldOmitTwoDaysOfLeave(t *testing.T) {
+	// Leave is not more than two business days.
+	req := EmployeeLeaveRequest{
+		StartDate: Time{time.Date(2021, time.Month(1), 18, 0, 0, 0, 0, time.UTC)},
+		EndDate:   Time{time.Date(2021, time.Month(1), 19, 0, 0, 0, 0, time.UTC)},
+	}
+
+	tests := []struct {
+		currentDay time.Time
+		expected   bool
+		desc       string
+	}{
+		{
+			currentDay: time.Date(2021, time.Month(1), 15, 0, 0, 0, 0, time.UTC),
+			expected:   false,
+			desc:       "three-business-days-before-two-day-leave--don't-omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 18, 0, 0, 0, 0, time.UTC),
+			expected:   false,
+			desc:       "first-day-of-two-day-leave--don't-omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 19, 0, 0, 0, 0, time.UTC),
+			expected:   false,
+			desc:       "last-day-of-two-day-leave--don't-omit",
+		},
+		{
+			currentDay: time.Date(2021, time.Month(1), 20, 0, 0, 0, 0, time.UTC),
+			expected:   false,
+			desc:       "day-after-two-day-leave--don't-omit",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			res := req.shouldOmitEmployee(test.currentDay)
+			require.Equal(t, test.expected, res)
+
+		})
+	}
+}
+
+func TestBusinessDaysCount(t *testing.T) {
+	tests := []struct {
+		leave    EmployeeLeaveRequest
+		expected int
+		desc     string
+	}{
+		{
+			leave: EmployeeLeaveRequest{
+				StartDate: Time{time.Date(2021, time.Month(1), 1, 0, 0, 0, 0, time.UTC)},
+				EndDate:   Time{time.Date(2021, time.Month(1), 5, 0, 0, 0, 0, time.UTC)},
+			},
+			expected: 3,
+			desc:     "5-day-range-over-a-weekend",
+		},
+		{
+			leave: EmployeeLeaveRequest{
+				StartDate: Time{time.Date(2021, time.Month(1), 15, 0, 0, 0, 0, time.UTC)},
+				EndDate:   Time{time.Date(2021, time.Month(1), 28, 0, 0, 0, 0, time.UTC)},
+			},
+			expected: 10,
+			desc:     "14-day-range-over-two-weekends",
+		},
+		{
+			leave: EmployeeLeaveRequest{
+				StartDate: Time{time.Date(2021, time.Month(1), 1, 0, 0, 0, 0, time.UTC)},
+				EndDate:   Time{time.Date(2021, time.Month(1), 1, 0, 0, 0, 0, time.UTC)},
+			},
+			expected: 1,
+			desc:     "1-day-range",
+		},
+		{
+			leave: EmployeeLeaveRequest{
+				StartDate: Time{time.Date(2021, time.Month(1), 1, 0, 0, 0, 0, time.UTC)},
+				EndDate:   Time{time.Date(2021, time.Month(1), 4, 0, 0, 0, 0, time.UTC)},
+			},
+			expected: 2,
+			desc:     "4-day-range-over-a-weekend",
+		},
+		{
+			leave: EmployeeLeaveRequest{
+				StartDate: Time{time.Date(2021, time.Month(1), 18, 0, 0, 0, 0, time.UTC)},
+				EndDate:   Time{time.Date(2021, time.Month(1), 22, 0, 0, 0, 0, time.UTC)},
+			},
+			expected: 5,
+			desc:     "5-day-range",
+		},
+		{
+			leave: EmployeeLeaveRequest{
+				StartDate: Time{time.Date(2021, time.Month(1), 27, 0, 0, 0, 0, time.UTC)},
+				EndDate:   Time{time.Date(2021, time.Month(2), 17, 0, 0, 0, 0, time.UTC)},
+			},
+			expected: 16,
+			desc:     "22-day-range-over-three-weekends",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			result := test.leave.businessDayCount()
+			require.Equal(t, test.expected, result)
+		})
+	}
+}
