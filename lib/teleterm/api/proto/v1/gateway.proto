@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package teleport.terminal.v1;
+
+option go_package = "github.com/gravitational/teleport/lib/teleterm/v1";
+
+message Gateway {
+    // uri is the gateway uri
+    string uri = 1;
+    // target_name is the target resource name
+    string target_name = 2;
+    // target_uri is the target uri
+    string target_uri = 3;
+    // target_user is the target user
+    string target_user = 4;
+    // localaddress is the gateway address on localhost
+    string local_address = 5;
+    // localport is the gateway address on localhost
+    string local_port = 6;
+    // protocol is the gateway protocol
+    string protocol = 7;
+    // ca_cert_path
+    string ca_cert_path = 8;
+    // cert_path
+    string cert_path = 9;
+    // key_path
+    string key_path = 10;
+    // native_client_path is the path to native client program for quick access
+    string native_client_path = 11;
+    // NativeClientArgs is the arguments of the native client for quick access
+    string native_client_args = 12;
+}
